@@ -9,6 +9,13 @@ import statistics
 from datetime import datetime, timedelta
 import csv
 
+# Check if CUDA is available
+device = torch.device('cpu')
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+torch.set_default_device(device)
+print(f"Using device = {torch.get_default_device()}")
+
 
 # define a GRU/RNN model
 class AKIRNN(nn.Module):
@@ -94,50 +101,43 @@ def parserow(row):
     return age, gender, flag, times, results
 
 
-if __name__ == "__main__":
-    # Check if CUDA is available
-    device = torch.device('cpu')
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-    torch.set_default_device(device)
-    print(f"Using device = {torch.get_default_device()}")
-    # import training data
-    data = csv.reader(open("training.csv"))
-    # parse data
-    ages, genders, flags, testtimes, testresults = parse(data)
-    # load data to torch dataset (and set up dataloader)
-    train_dataset = Dset(ages, genders, flags, testtimes, testresults)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    # initiate the model
-    input_size = 2  # time and result of tests
-    hidden_size = 5
-    output_size = 2  # For binary classification
-    layers = 1
-    model = AKIRNN(input_size, hidden_size, output_size, layers)
-    # train the model
-    print("training started")
-    start = time.time()
-    n_epoch = 50
-    report_every = 5
-    learning_rate = 0.15
-    criterion = nn.CrossEntropyLoss() # TODO: change loss to f3 score
-    model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    for iter in range(1, n_epoch + 1):
-        model.zero_grad()
-        e_loss = []
-        for x1, x2, label in train_loader:
-            outputs = model(x1, x2)
-            loss = criterion(outputs, label)
-            e_loss.append(loss.item())
-            optimizer.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 3)
-            optimizer.step()
-        if iter % report_every == 0:
-            print(f"{iter} ({iter / n_epoch:.0%}): \t average batch loss = {statistics.mean(e_loss):.4f}")
-    end = time.time()
-    print(f"training took {end - start}s")
-    # save the trained model
-    torch.save(model.state_dict(), "trained_model.pt")
-    print("trained model saved as trained_model.pt")
+# import training data
+data = csv.reader(open("training.csv"))
+# parse data
+ages, genders, flags, testtimes, testresults = parse(data)
+# load data to torch dataset (and set up dataloader)
+train_dataset = Dset(ages, genders, flags, testtimes, testresults)
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
+# initiate the model
+input_size = 2  # time and result of tests
+hidden_size = 5
+output_size = 2  # For binary classification
+layers = 1
+model = AKIRNN(input_size, hidden_size, output_size, layers)
+# train the model
+print("training started")
+start = time.time()
+n_epoch = 50
+report_every = 5
+learning_rate = 0.15
+criterion = nn.CrossEntropyLoss()  # TODO: change loss to f3 score
+model.train()
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+for iter in range(1, n_epoch + 1):
+    model.zero_grad()
+    e_loss = []
+    for x1, x2, label in train_loader:
+        outputs = model(x1, x2)
+        loss = criterion(outputs, label)
+        e_loss.append(loss.item())
+        optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), 3)
+        optimizer.step()
+    if iter % report_every == 0:
+        print(f"{iter} ({iter / n_epoch:.0%}): \t average batch loss = {statistics.mean(e_loss):.4f}")
+end = time.time()
+print(f"training took {end - start}s")
+# save the trained model
+torch.save(model.state_dict(), "trained_model.pt")
+print("trained model saved as trained_model.pt")
