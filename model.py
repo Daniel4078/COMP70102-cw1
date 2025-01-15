@@ -7,6 +7,10 @@ import torch
 from trainer import parserow, AKIRNN
 
 def main():
+    device = torch.device('cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    torch.set_default_device(device)
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="test.csv")
     parser.add_argument("--output", default="aki.csv")
@@ -22,7 +26,7 @@ def main():
     layers = 1
     model = AKIRNN(input_size, hidden_size, output_size, layers)
     # load trained model from file
-    model.load_state_dict(torch.load("trained_model.pt", weights_only=True))
+    model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))
     model.eval()
     torch.no_grad()
     for row in r:

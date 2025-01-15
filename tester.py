@@ -24,14 +24,18 @@ hidden_size = 5
 output_size = 2  # For binary classification
 layers = 1
 model = AKIRNN(input_size, hidden_size, output_size, layers)
+model = model.to(device)
 # load trained model from file
-model.load_state_dict(torch.load("trained_model.pt", weights_only=True))
+model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))
 # evaluate model
 model.eval()
 correct = 0
 total = 0
 with torch.no_grad():
     for x1, x2, labels in test_loader:
+        x1 = x1.to(device)
+        x2 = x2.to(device)
+        labels = labels.to(device)
         outputs = model(x1, x2)
         _, predicted = torch.max(outputs, 1)
         total += labels.size(0)

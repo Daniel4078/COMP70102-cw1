@@ -114,6 +114,7 @@ hidden_size = 5
 output_size = 2  # For binary classification
 layers = 1
 model = AKIRNN(input_size, hidden_size, output_size, layers)
+model.to(device)
 # train the model
 print("training started")
 start = time.time()
@@ -127,6 +128,9 @@ for iter in range(1, n_epoch + 1):
     model.zero_grad()
     e_loss = []
     for x1, x2, label in train_loader:
+        x1 = x1.to(device)
+        x2 = x2.to(device)
+        label = label.to(device)
         outputs = model(x1, x2)
         loss = criterion(outputs, label)
         e_loss.append(loss.item())
