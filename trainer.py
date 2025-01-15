@@ -22,13 +22,12 @@ class AKIRNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, layers):
         super(AKIRNN, self).__init__()
         self.l = layers
-        self.rnn = nn.GRU(input_size, hidden_size, num_layers=layers, batch_first=True, bidirectional=True)
-        self.fc = nn.Linear(hidden_size + 2, output_size)
+        self.hidden = hidden_size
+        self.gru = nn.GRU(input_size, hidden_size, num_layers=layers, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(2*hidden_size + 2, output_size)
 
     def forward(self, x1, x2):
-        # Initialize hidden states of RNN with zeros
-        h0 = torch.zeros(self.l, x1.size(0), hidden_size)
-        out, _ = self.rnn(x1, h0)
+        out, _ = self.gru(x1)
         combined = torch.cat((out[:, -1, :], x2), dim=1)
         final = self.fc(combined)
         return final
