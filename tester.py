@@ -31,6 +31,7 @@ model.load_state_dict(torch.load("trained_model.pt", map_location=device, weight
 model.eval()
 correct = 0
 total = 0
+print("evaluation started")
 with torch.no_grad():
     for x1, x2, labels in test_loader:
         x1 = x1.to(device)
