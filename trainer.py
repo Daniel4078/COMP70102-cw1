@@ -117,10 +117,10 @@ if __name__ == "__main__":
     # train the model
     print("training started")
     start = time.time()
-    n_epoch = 100
+    n_epoch = 200
     report_every = 10
     learning_rate = 0.001
-    criterion = nn.CrossEntropyLoss()  # TODO: change loss to f3 score
+    criterion = nn.CrossEntropyLoss()
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     for iter in range(1, n_epoch + 1):
