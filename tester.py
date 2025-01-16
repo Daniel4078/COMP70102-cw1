@@ -2,7 +2,7 @@
 
 import torch
 import csv
-from trainer import parse, Dset, getmodel
+from trainer import parse, getmodel
 from torch.utils.data import DataLoader
 
 # Check if CUDA is available
@@ -16,7 +16,7 @@ data = csv.reader(open("test.csv"))
 # parse and load data
 test_loader = parse(data, device)
 # get model structure
-model = getmodel()
+model = getmodel(True) # model processes batch here
 model = model.to(device)
 # load trained model from file
 model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))

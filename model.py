@@ -2,9 +2,8 @@
 
 import argparse
 import csv
-import random
 import torch
-from trainer import parserow, getmodel
+from trainer import parserow, getmodel, AKIRNN
 
 def main():
     device = torch.device('cpu')
@@ -16,7 +15,7 @@ def main():
     parser.add_argument("--output", default="aki.csv")
     flags = parser.parse_args()
     r = csv.reader(open(flags.input))
-    w = csv.writer(open(flags.output, "w"))
+    w = csv.writer(open(flags.output, "w", newline=''))
     w.writerow(("aki",))
     # check if "aki" column is present in the given dataset
     headers = next(r)
@@ -25,7 +24,7 @@ def main():
     else:
         hidden = True
     # initiate the model
-    model = getmodel()
+    model = getmodel(False) # model does not process batch here
     model = model.to(device)
     # load trained model from file
     model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))
@@ -38,8 +37,10 @@ def main():
         x1 = x1.to(device)
         x2 = x2.to(device)
         output = model(x1, x2)
-        _, predicted = torch.max(output)
-        w.writerow(("n" if predicted == 0 else "y",))
+        predicted = torch.argmax(output)
+        prediction = "n" if predicted == 0 else "y"
+        w.writerow((prediction,))
+    print("predictions written to "+ flags.output)
 
 if __name__ == "__main__":
     main()

@@ -12,9 +12,10 @@ import csv
 
 # define a LSTM model
 class AKIRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, layers):
+    def __init__(self, input_size, hidden_size, output_size, layers, batched=True):
         super(AKIRNN, self).__init__()
         self.l = layers
+        self.b = batched
         self.hidden = hidden_size
         self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True, bidirectional=True)
         self.fc = nn.Linear(2 * hidden_size + 2, output_size)
@@ -22,7 +23,7 @@ class AKIRNN(nn.Module):
     def forward(self, x1, x2):
         out, _ = self.rnn(x1)
         # check if given data is batched
-        if x2.dim == 1:
+        if not self.b:
             combined = torch.cat((out[-1, :], x2))
         else:
             combined = torch.cat((out[:, -1, :], x2), dim=1)
@@ -31,12 +32,12 @@ class AKIRNN(nn.Module):
 
 
 # initiate the model
-def getmodel():
+def getmodel(batched):
     input_size = 2  # time and result of tests
     hidden_size = 20
     output_size = 2  # For binary classification
     layers = 2
-    model = AKIRNN(input_size, hidden_size, output_size, layers)
+    model = AKIRNN(input_size, hidden_size, output_size, layers, batched)
     return model
 
 
@@ -126,7 +127,7 @@ if __name__ == "__main__":
     # parse and load data
     train_loader = parse(data, device)
     # get model structure
-    model = getmodel()
+    model = getmodel(True) # model processes batch here
     model.to(device)
     # train the model
     print("training started")
@@ -134,9 +135,10 @@ if __name__ == "__main__":
     n_epoch = 300  # 300 takes about 1200 secs = 20 mins to train
     report_every = 20
     learning_rate = 0.001  # lr > 0.005 is bad
+    weight_decay = 0.01
     criterion = nn.CrossEntropyLoss()
     model.train()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):
         model.zero_grad()
         e_loss = []
