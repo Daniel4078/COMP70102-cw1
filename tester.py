@@ -2,7 +2,7 @@
 
 import torch
 import csv
-from trainer import parse, Dset, AKIRNN
+from trainer import parse, Dset, getmodel
 from torch.utils.data import DataLoader
 
 # Check if CUDA is available
@@ -13,17 +13,10 @@ torch.set_default_device(device)
 print(f"Using device = {torch.get_default_device()}")
 # import testing data
 data = csv.reader(open("test.csv"))
-# parse data
-ages, genders, flags, testtimes, testresults = parse(data)
-# load data to torch dataset (and set up dataloader)
-test_dataset = Dset(ages, genders, flags, testtimes, testresults)
-test_loader = DataLoader(test_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
-# initiate the model
-input_size = 2  # time and result of tests
-hidden_size = 20
-output_size = 2  # For binary classification
-layers = 2
-model = AKIRNN(input_size, hidden_size, output_size, layers)
+# parse and load data
+test_loader = parse(data, device)
+# get model structure
+model = getmodel()
 model = model.to(device)
 # load trained model from file
 model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))

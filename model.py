@@ -4,7 +4,7 @@ import argparse
 import csv
 import random
 import torch
-from trainer import parserow, AKIRNN
+from trainer import parserow, getmodel
 
 def main():
     device = torch.device('cpu')
@@ -18,21 +18,25 @@ def main():
     r = csv.reader(open(flags.input))
     w = csv.writer(open(flags.output, "w"))
     w.writerow(("aki",))
-    next(r) # skip headers
+    # check if "aki" column is present in the given dataset
+    headers = next(r)
+    if headers[2] == "aki":
+        hidden = False
+    else:
+        hidden = True
     # initiate the model
-    input_size = 2  # time and result of tests
-    hidden_size = 20
-    output_size = 2  # For binary classification
-    layers = 2
-    model = AKIRNN(input_size, hidden_size, output_size, layers)
+    model = getmodel()
+    model = model.to(device)
     # load trained model from file
     model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))
     model.eval()
     torch.no_grad()
     for row in r:
-        age, gender, flag, times, results = parserow(row)
+        age, gender, flag, times, results = parserow(row, hidden)
         x1 = torch.stack((torch.tensor(results), torch.tensor(times)), dim=1)
         x2 = torch.tensor((age, gender))
+        x1 = x1.to(device)
+        x2 = x2.to(device)
         output = model(x1, x2)
         _, predicted = torch.max(output)
         w.writerow(("n" if predicted == 0 else "y",))

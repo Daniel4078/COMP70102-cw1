@@ -21,9 +21,23 @@ class AKIRNN(nn.Module):
 
     def forward(self, x1, x2):
         out, _ = self.rnn(x1)
-        combined = torch.cat((out[:, -1, :], x2), dim=1)
+        # check if given data is batched
+        if x2.dim == 1:
+            combined = torch.cat((out[-1, :], x2))
+        else:
+            combined = torch.cat((out[:, -1, :], x2), dim=1)
         final = self.fc(combined)
         return final
+
+
+# initiate the model
+def getmodel():
+    input_size = 2  # time and result of tests
+    hidden_size = 20
+    output_size = 2  # For binary classification
+    layers = 2
+    model = AKIRNN(input_size, hidden_size, output_size, layers)
+    return model
 
 
 # a dataset class that pad the sequences into same length for batch training
@@ -47,8 +61,8 @@ class Dset(Dataset):
         return x1, x2, label
 
 
-# function to parse data, used in other files
-def parse(data):
+# function to parse data and load them in a dataloader
+def parse(data, device):
     next(data)
     ages = []
     genders = []
@@ -56,20 +70,26 @@ def parse(data):
     alltimes = []
     allresults = []
     for row in data:
-        age, gender, flag, times, results = parserow(row)
+        age, gender, flag, times, results = parserow(row, False)
         ages.append(age)
         genders.append(gender)
         flags.append(flag)
         alltimes.append(torch.tensor(times))
         allresults.append(torch.tensor(results))
-    return ages, genders, flags, alltimes, allresults
+    # load data to torch dataset (and set up dataloader)
+    train_dataset = Dset(ages, genders, flags, alltimes, allresults)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
+    return train_loader
 
 
-def parserow(row):
-    length = (len(row) - 3) // 2
+def parserow(row, hidden):
+    if hidden:
+        length = (len(row) - 2) // 2
+    else:
+        length = (len(row) - 3) // 2
     age = int(row[0])
     gender = 1 if row[1] == "f" else 2
-    if row[2] == "":
+    if hidden:
         flag = -1
     else:
         flag = 0 if row[2] == "n" else 1
@@ -78,17 +98,18 @@ def parserow(row):
     started = False
     prev = 0
     for i in range(length - 1, -1, -1):
-        if row[3 + i * 2] == "":
+        offset = (2 + i * 2) if hidden else (3 + i * 2)
+        if row[offset] == "":
             continue
         if not started:
             started = True
-            prev = datetime.fromisoformat(row[3 + i * 2])
+            prev = datetime.fromisoformat(row[offset])
             times.append(1)
-            results.append(float(row[4 + i * 2]))
+            results.append(float(row[offset + 1]))
         else:
-            current = datetime.fromisoformat(row[3 + i * 2])
+            current = datetime.fromisoformat(row[offset])
             times.append((prev - current) / timedelta(seconds=1) + 1)
-            results.append(float(row[4 + i * 2]))
+            results.append(float(row[offset + 1]))
             prev = current
     return age, gender, flag, times, results
 
@@ -102,24 +123,17 @@ if __name__ == "__main__":
     print(f"Using device = {torch.get_default_device()}")
     # import training data
     data = csv.reader(open("training.csv"))
-    # parse data
-    ages, genders, flags, testtimes, testresults = parse(data)
-    # load data to torch dataset (and set up dataloader)
-    train_dataset = Dset(ages, genders, flags, testtimes, testresults)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
-    # initiate the model
-    input_size = 2  # time and result of tests
-    hidden_size = 20
-    output_size = 2  # For binary classification
-    layers = 2
-    model = AKIRNN(input_size, hidden_size, output_size, layers)
+    # parse and load data
+    train_loader = parse(data, device)
+    # get model structure
+    model = getmodel()
     model.to(device)
     # train the model
     print("training started")
     start = time.time()
-    n_epoch = 300
+    n_epoch = 300  # 300 takes about 1200 secs = 20 mins to train
     report_every = 20
-    learning_rate = 0.005
+    learning_rate = 0.001  # lr > 0.005 is bad
     criterion = nn.CrossEntropyLoss()
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
