@@ -109,17 +109,17 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
     # initiate the model
     input_size = 2  # time and result of tests
-    hidden_size = 10
+    hidden_size = 20
     output_size = 2  # For binary classification
-    layers = 1
+    layers = 2
     model = AKIRNN(input_size, hidden_size, output_size, layers)
     model.to(device)
     # train the model
     print("training started")
     start = time.time()
-    n_epoch = 200
-    report_every = 10
-    learning_rate = 0.001
+    n_epoch = 300
+    report_every = 20
+    learning_rate = 0.005
     criterion = nn.CrossEntropyLoss()
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -141,6 +141,5 @@ if __name__ == "__main__":
             print(f"{iter} ({iter / n_epoch:.0%}): \t average batch loss = {statistics.mean(e_loss):.4f}")
     end = time.time()
     print(f"training took {end - start}s")
-    # save the trained model
     torch.save(model.state_dict(), "trained_model.pt")
-    print("trained model saved as trained_model.pt")
+    print("current best trained model saved as trained_model.pt")

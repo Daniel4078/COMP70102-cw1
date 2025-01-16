@@ -21,9 +21,9 @@ def main():
     next(r) # skip headers
     # initiate the model
     input_size = 2  # time and result of tests
-    hidden_size = 5
+    hidden_size = 20
     output_size = 2  # For binary classification
-    layers = 1
+    layers = 2
     model = AKIRNN(input_size, hidden_size, output_size, layers)
     # load trained model from file
     model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))

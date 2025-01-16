@@ -20,9 +20,9 @@ test_dataset = Dset(ages, genders, flags, testtimes, testresults)
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
 # initiate the model
 input_size = 2  # time and result of tests
-hidden_size = 10
+hidden_size = 20
 output_size = 2  # For binary classification
-layers = 1
+layers = 2
 model = AKIRNN(input_size, hidden_size, output_size, layers)
 model = model.to(device)
 # load trained model from file
