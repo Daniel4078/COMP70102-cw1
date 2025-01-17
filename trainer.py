@@ -17,8 +17,10 @@ class AKIRNN(nn.Module):
         self.l = layers
         self.b = batched
         self.hidden = hidden_size
-        self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True, bidirectional=True)
-        self.fc = nn.Linear(2 * hidden_size + 2, output_size)
+        #self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True, bidirectional=True)
+        #self.fc = nn.Linear(2 * hidden_size + 2, output_size)
+        self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size + 2, output_size)
 
     def forward(self, x1, x2):
         out, _ = self.rnn(x1)
@@ -49,8 +51,8 @@ class Dset(Dataset):
         self.flag = flag
         self.length = len(self.age)
         # padding the sequences
-        self.date = pad_sequence(date, batch_first=True)
-        self.result = pad_sequence(result, batch_first=True)
+        self.date = pad_sequence(date, batch_first=True, padding_value=-1, padding_side='left')
+        self.result = pad_sequence(result, batch_first=True, padding_value=-1, padding_side='left')
 
     def __len__(self):
         return self.length
@@ -70,8 +72,14 @@ def parse(data, device):
     flags = []
     alltimes = []
     allresults = []
+    positive = 0
+    negative = 0
     for row in data:
         age, gender, flag, times, results = parserow(row, False)
+        if age == 0:
+            negative += 1
+        elif age == 1:
+            positive += 1
         ages.append(age)
         genders.append(gender)
         flags.append(flag)
@@ -80,7 +88,7 @@ def parse(data, device):
     # load data to torch dataset (and set up dataloader)
     train_dataset = Dset(ages, genders, flags, alltimes, allresults)
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
-    return train_loader
+    return train_loader, negative, positive
 
 
 def parserow(row, hidden):
@@ -125,7 +133,10 @@ if __name__ == "__main__":
     # import training data
     data = csv.reader(open("training.csv"))
     # parse and load data
-    train_loader = parse(data, device)
+    train_loader, n, p = parse(data, device)
+    # use invert class sampling count to balance the loss
+    weight = torch.tensor([p/(n+p), n/(n+p)], dtype=torch.float32)
+    print(f"number of negatives:{n}, number of positives:{p}")
     # get model structure
     model = getmodel(True) # model processes batch here
     model.to(device)
@@ -133,10 +144,10 @@ if __name__ == "__main__":
     print("training started")
     start = time.time()
     n_epoch = 300  # 300 takes about 1200 secs = 20 mins to train
-    report_every = 20
-    learning_rate = 0.001  # lr > 0.005 is bad
-    weight_decay = 0.01
-    criterion = nn.CrossEntropyLoss()
+    report_every = 10
+    learning_rate = 0.001
+    weight_decay = 0
+    criterion = nn.CrossEntropyLoss(weight=weight)
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):

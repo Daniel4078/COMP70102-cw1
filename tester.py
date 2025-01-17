@@ -14,7 +14,7 @@ print(f"Using device = {torch.get_default_device()}")
 # import testing data
 data = csv.reader(open("test.csv"))
 # parse and load data
-test_loader = parse(data, device)
+test_loader, _, _ = parse(data, device)
 # get model structure
 model = getmodel(True) # model processes batch here
 model = model.to(device)
