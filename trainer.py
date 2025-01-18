@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from torch.utils.data import Dataset, DataLoader
 import time
 import statistics
@@ -12,34 +12,34 @@ import csv
 
 # define a LSTM model
 class AKIRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, layers, batched=True):
+    def __init__(self, input_size, hidden_size, output_size, layers):
         super(AKIRNN, self).__init__()
         self.l = layers
-        self.b = batched
         self.hidden = hidden_size
-        #self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True, bidirectional=True)
-        #self.fc = nn.Linear(2 * hidden_size + 2, output_size)
         self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True)
         self.fc = nn.Linear(hidden_size + 2, output_size)
 
-    def forward(self, x1, x2):
-        out, _ = self.rnn(x1)
-        # check if given data is batched
-        if not self.b:
-            combined = torch.cat((out[-1, :], x2))
-        else:
-            combined = torch.cat((out[:, -1, :], x2), dim=1)
+    def forward(self, x1_padded, x2, lengths):
+        batch_size = len(x2)
+        x1_pack = pack_padded_sequence(x1_padded, lengths, batch_first=True, enforce_sorted=False)
+        output_packed, hidden = self.rnn(x1_pack)
+        output_padded, output_lengths = pad_packed_sequence(output_packed, batch_first=True)
+        ends = []
+        for i in range(batch_size):
+            ends.append(output_padded[i, output_lengths[i] - 1, :])
+        ends = torch.stack(ends)
+        combined = torch.cat([ends, x2], 1)
         final = self.fc(combined)
         return final
 
 
 # initiate the model
-def getmodel(batched):
+def getmodel():
     input_size = 2  # time and result of tests
     hidden_size = 20
-    output_size = 2  # For binary classification
+    output_size = 1  # For binary classification
     layers = 2
-    model = AKIRNN(input_size, hidden_size, output_size, layers, batched)
+    model = AKIRNN(input_size, hidden_size, output_size, layers)
     return model
 
 
@@ -50,9 +50,8 @@ class Dset(Dataset):
         self.gender = gender
         self.flag = flag
         self.length = len(self.age)
-        # padding the sequences
-        self.date = pad_sequence(date, batch_first=True, padding_value=-1, padding_side='left')
-        self.result = pad_sequence(result, batch_first=True, padding_value=-1, padding_side='left')
+        self.date = date
+        self.result = result
 
     def __len__(self):
         return self.length
@@ -60,13 +59,31 @@ class Dset(Dataset):
     def __getitem__(self, idx):
         x1 = torch.stack((self.result[idx], self.date[idx]), dim=1)
         x2 = torch.tensor((self.age[idx], self.gender[idx]))
-        label = torch.tensor(self.flag[idx])
-        return x1, x2, label
+        label = torch.tensor(self.flag[idx], dtype=torch.float32)
+        return (x1, x2, label)
+
+
+class PadSequence:
+    def __call__(self, batch):  # each element in "batch" is a tuple (x1, x2, label).
+        # Get each sequence of data and label, pad x1
+        x1, x2, labels = zip(*batch)
+        x2 = torch.stack(x2)
+        labels = torch.stack(labels)
+        # store the length of each sequence
+        lengths = torch.LongTensor([len(x) for x in x1])
+        # pad x1
+        x1_padded = pad_sequence(x1, batch_first=True)
+        return x1_padded, x2, lengths, labels
 
 
 # function to parse data and load them in a dataloader
-def parse(data, device):
-    next(data)
+def parse(data, device, not_inference):
+    # check if "aki" column is present in the given dataset
+    headers = next(data)
+    if headers[2] == "aki":
+        hidden = False
+    else:
+        hidden = True
     ages = []
     genders = []
     flags = []
@@ -75,7 +92,7 @@ def parse(data, device):
     positive = 0
     negative = 0
     for row in data:
-        age, gender, flag, times, results = parserow(row, False)
+        age, gender, flag, times, results = parserow(row, hidden)
         if age == 0:
             negative += 1
         elif age == 1:
@@ -87,7 +104,8 @@ def parse(data, device):
         allresults.append(torch.tensor(results))
     # load data to torch dataset (and set up dataloader)
     train_dataset = Dset(ages, genders, flags, alltimes, allresults)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, generator=torch.Generator(device=device))
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=not_inference,
+                              generator=torch.Generator(device=device), collate_fn=PadSequence())
     return train_loader, negative, positive
 
 
@@ -133,37 +151,35 @@ if __name__ == "__main__":
     # import training data
     data = csv.reader(open("training.csv"))
     # parse and load data
-    train_loader, n, p = parse(data, device)
+    train_loader, n, p = parse(data, device, True)
     # use invert class sampling count to balance the loss
-    weight = torch.tensor([p/(n+p), n/(n+p)], dtype=torch.float32)
+    weight = torch.tensor(n / p, dtype=torch.float32)
     print(f"number of negatives:{n}, number of positives:{p}")
     # get model structure
-    model = getmodel(True) # model processes batch here
+    model = getmodel()
     model.to(device)
     # train the model
     print("training started")
     start = time.time()
-    n_epoch = 300  # 300 takes about 1200 secs = 20 mins to train
+    n_epoch = 400
     report_every = 10
     learning_rate = 0.001
     weight_decay = 0
-    criterion = nn.CrossEntropyLoss(weight=weight)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=3*weight)
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):
         model.zero_grad()
         e_loss = []
-        for x1, x2, label in train_loader:
-            x1 = x1.to(device)
-            x2 = x2.to(device)
-            label = label.to(device)
-            outputs = model(x1, x2)
-            loss = criterion(outputs, label)
+        for x1_padded, x2, lengths, labels in train_loader:
+            labels = labels.view(-1, 1)
+            outputs = model(x1_padded, x2, lengths)
+            loss = criterion(outputs, labels)
             e_loss.append(loss.item())
-            optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 3)
             optimizer.step()
+            optimizer.zero_grad()
         if iter % report_every == 0:
             print(f"{iter} ({iter / n_epoch:.0%}): \t average batch loss = {statistics.mean(e_loss):.4f}")
     end = time.time()
