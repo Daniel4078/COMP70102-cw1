@@ -12,12 +12,14 @@ import csv
 
 # define a LSTM model
 class AKIRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, layers):
+    def __init__(self, input_size, hidden_size, output_size, mid_size, layers):
         super(AKIRNN, self).__init__()
         self.l = layers
         self.hidden = hidden_size
         self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size + 2, output_size)
+        self.fc = nn.Linear(hidden_size + 2, mid_size)
+        self.act = nn.LeakyReLU()
+        self.fc1 = nn.Linear(mid_size, output_size)
 
     def forward(self, x1_padded, x2, lengths):
         batch_size = len(x2)
@@ -29,17 +31,18 @@ class AKIRNN(nn.Module):
             ends.append(output_padded[i, output_lengths[i] - 1, :])
         ends = torch.stack(ends)
         combined = torch.cat([ends, x2], 1)
-        final = self.fc(combined)
+        final = self.fc1(self.act(self.fc(combined)))
         return final
 
 
 # initiate the model
 def getmodel():
     input_size = 2  # time and result of tests
-    hidden_size = 20
+    hidden_size = 10
     output_size = 1  # For binary classification
     layers = 2
-    model = AKIRNN(input_size, hidden_size, output_size, layers)
+    mid_size = 5
+    model = AKIRNN(input_size, hidden_size, output_size, mid_size, layers)
     return model
 
 
