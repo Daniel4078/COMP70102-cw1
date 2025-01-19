@@ -17,10 +17,9 @@ class AKIRNN(nn.Module):
         self.l = layers
         self.hidden = hidden_size
         self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size + 2, mid_size[0])
+        self.fc = nn.Linear(hidden_size + 2, mid_size)
         self.act = nn.LeakyReLU()
-        self.fc1 = nn.Linear(mid_size[0], mid_size[1])
-        self.fc2 = nn.Linear(mid_size[1], output_size)
+        self.fc1 = nn.Linear(mid_size, output_size)
 
     def forward(self, x1_padded, x2, lengths):
         batch_size = len(x2)
@@ -33,17 +32,16 @@ class AKIRNN(nn.Module):
         ends = torch.stack(ends)
         combined = torch.cat([ends, x2], 1)
         final = self.fc1(self.act(self.fc(combined)))
-        final = self.fc2(self.act(final))
         return final
 
 
 # initiate the model
 def getmodel():
     input_size = 2  # time and result of tests
-    hidden_size = 10
+    hidden_size = 20
     output_size = 1  # For binary classification
-    layers = 2
-    mid_size = [5, 5]
+    layers = 1
+    mid_size = 10
     model = AKIRNN(input_size, hidden_size, output_size, mid_size, layers)
     return model
 
@@ -142,7 +140,7 @@ def parserow(row, hidden):
             results.append(float(row[offset + 1]))
         else:
             current = datetime.fromisoformat(row[offset])
-            times.append((prev - current) / timedelta(seconds=1) + 1)
+            times.append((prev - current) / timedelta(seconds=1) * 3600 + 1)
             results.append(float(row[offset + 1]))
     return age, gender, flag, times, results
 
@@ -167,11 +165,11 @@ if __name__ == "__main__":
     # train the model
     print("training started")
     start = time.time()
-    n_epoch = 500
+    n_epoch = 200
     report_every = 10
     learning_rate = 0.001
     weight_decay = 0
-    criterion = nn.BCEWithLogitsLoss(pos_weight=3 * weight)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=3 * weight) # put more focus on positive cases
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):
