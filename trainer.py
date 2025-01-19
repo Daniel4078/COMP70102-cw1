@@ -99,9 +99,9 @@ def parse(data, device, not_inference):
     negative = 0
     for row in data:
         age, gender, flag, times, results = parserow(row, hidden)
-        if age == 0:
+        if flag == 0:
             negative += 1
-        elif age == 1:
+        elif flag == 1:
             positive += 1
         ages.append(age)
         genders.append(gender)
