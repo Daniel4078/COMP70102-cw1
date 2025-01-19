@@ -162,9 +162,9 @@ if __name__ == "__main__":
     start = time.time()
     n_epoch = 200
     report_every = 10
-    learning_rate = 0.001
+    learning_rate = 0.0005
     weight_decay = 0
-    criterion = nn.BCEWithLogitsLoss(pos_weight=weight) # put more focus on positive cases
+    criterion = nn.BCEWithLogitsLoss(pos_weight=3 * weight) # put more focus on positive cases
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):
