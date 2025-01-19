@@ -17,11 +17,10 @@ class AKIRNN(nn.Module):
         self.l = layers
         self.hidden = hidden_size
         self.rnn = nn.LSTM(input_size, hidden_size, num_layers=layers, batch_first=True)
-        self.fc = nn.Linear(hidden_size + 2, mid_size)
+        self.fc = nn.Linear(hidden_size + 2, mid_size[0])
         self.act = nn.LeakyReLU()
-        self.fc1 = nn.Linear(mid_size, output_size)
-        # self.act2 = nn.LeakyReLU() # tried adding another full connection layer, no improvement found yet
-        # self.fc2 = nn.Linear(mid_size[1], output_size)
+        self.fc1 = nn.Linear(mid_size[0], mid_size[1])
+        self.fc2 = nn.Linear(mid_size[1], output_size)
 
     def forward(self, x1_padded, x2, lengths):
         batch_size = len(x2)
@@ -34,7 +33,7 @@ class AKIRNN(nn.Module):
         ends = torch.stack(ends)
         combined = torch.cat([ends, x2], 1)
         final = self.fc1(self.act(self.fc(combined)))
-        # final = self.fc2(self.act2(final))
+        final = self.fc2(self.act(final))
         return final
 
 
@@ -44,7 +43,7 @@ def getmodel():
     hidden_size = 10
     output_size = 1  # For binary classification
     layers = 2
-    mid_size = 5
+    mid_size = [5, 5]
     model = AKIRNN(input_size, hidden_size, output_size, mid_size, layers)
     return model
 
@@ -130,6 +129,8 @@ def parserow(row, hidden):
     results = []
     started = False
     prev = 0
+    # convert test date info to the time difference from that test to the last test
+    # assuming the test data are already sorted by time
     for i in range(length - 1, -1, -1):
         offset = (2 + i * 2) if hidden else (3 + i * 2)
         if row[offset] == "":
@@ -143,7 +144,6 @@ def parserow(row, hidden):
             current = datetime.fromisoformat(row[offset])
             times.append((prev - current) / timedelta(seconds=1) + 1)
             results.append(float(row[offset + 1]))
-            prev = current
     return age, gender, flag, times, results
 
 
