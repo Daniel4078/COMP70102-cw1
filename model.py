@@ -2,8 +2,9 @@
 
 import argparse
 import csv
-import torch
-from trainer import parse, getmodel, AKIRNN
+import torch  # used to build and run the nn model
+from trainer import parse, getmodel
+
 
 def main():
     device = torch.device('cpu')
@@ -35,6 +36,7 @@ def main():
     for p in prediction:
         w.writerow((p,))
     print("predictions written to " + flags.output)
+
 
 if __name__ == "__main__":
     main()

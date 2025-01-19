@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import torch
+import torch  # used to build and train the nn model
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from torch.utils.data import Dataset, DataLoader
@@ -20,6 +20,8 @@ class AKIRNN(nn.Module):
         self.fc = nn.Linear(hidden_size + 2, mid_size)
         self.act = nn.LeakyReLU()
         self.fc1 = nn.Linear(mid_size, output_size)
+        # self.act2 = nn.LeakyReLU() # tried adding another full connection layer, no improvement found yet
+        # self.fc2 = nn.Linear(mid_size[1], output_size)
 
     def forward(self, x1_padded, x2, lengths):
         batch_size = len(x2)
@@ -32,6 +34,7 @@ class AKIRNN(nn.Module):
         ends = torch.stack(ends)
         combined = torch.cat([ends, x2], 1)
         final = self.fc1(self.act(self.fc(combined)))
+        # final = self.fc2(self.act2(final))
         return final
 
 
@@ -164,11 +167,11 @@ if __name__ == "__main__":
     # train the model
     print("training started")
     start = time.time()
-    n_epoch = 400
+    n_epoch = 500
     report_every = 10
     learning_rate = 0.001
     weight_decay = 0
-    criterion = nn.BCEWithLogitsLoss(pos_weight=3*weight)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=3 * weight)
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):
@@ -179,10 +182,10 @@ if __name__ == "__main__":
             outputs = model(x1_padded, x2, lengths)
             loss = criterion(outputs, labels)
             e_loss.append(loss.item())
+            optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 3)
             optimizer.step()
-            optimizer.zero_grad()
         if iter % report_every == 0:
             print(f"{iter} ({iter / n_epoch:.0%}): \t average batch loss = {statistics.mean(e_loss):.4f}")
     end = time.time()

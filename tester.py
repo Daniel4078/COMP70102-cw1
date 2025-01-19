@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import torch
+import torch  # used to build and run the nn model
 import csv
 from trainer import parse, getmodel
 
