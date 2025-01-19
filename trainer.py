@@ -22,14 +22,9 @@ class AKIRNN(nn.Module):
         self.fc1 = nn.Linear(mid_size, output_size)
 
     def forward(self, x1_padded, x2, lengths):
-        batch_size = len(x2)
         x1_pack = pack_padded_sequence(x1_padded, lengths, batch_first=True, enforce_sorted=False)
-        output_packed, hidden = self.rnn(x1_pack)
-        output_padded, output_lengths = pad_packed_sequence(output_packed, batch_first=True)
-        ends = []
-        for i in range(batch_size):
-            ends.append(output_padded[i, output_lengths[i] - 1, :])
-        ends = torch.stack(ends)
+        _, (h_n, _) = self.rnn(x1_pack)
+        ends = h_n[-1]
         combined = torch.cat([ends, x2], 1)
         final = self.fc1(self.act(self.fc(combined)))
         return final
@@ -38,10 +33,10 @@ class AKIRNN(nn.Module):
 # initiate the model
 def getmodel():
     input_size = 2  # time and result of tests
-    hidden_size = 20
+    hidden_size = 32
     output_size = 1  # For binary classification
     layers = 1
-    mid_size = 10
+    mid_size = 32
     model = AKIRNN(input_size, hidden_size, output_size, mid_size, layers)
     return model
 
@@ -118,7 +113,7 @@ def parserow(row, hidden):
     else:
         length = (len(row) - 3) // 2
     age = int(row[0])
-    gender = 1 if row[1] == "f" else 2
+    gender = 1 if row[1] == "f" else 0
     if hidden:
         flag = -1
     else:
@@ -127,7 +122,7 @@ def parserow(row, hidden):
     results = []
     started = False
     prev = 0
-    # convert test date info to the time difference from that test to the last test
+    # convert test date info to the time difference (hours) from that test to most recent test
     # assuming the test data are already sorted by time
     for i in range(length - 1, -1, -1):
         offset = (2 + i * 2) if hidden else (3 + i * 2)
@@ -140,7 +135,7 @@ def parserow(row, hidden):
             results.append(float(row[offset + 1]))
         else:
             current = datetime.fromisoformat(row[offset])
-            times.append((prev - current) / timedelta(seconds=1) * 3600 + 1)
+            times.append((prev - current) / timedelta(seconds=1) / 3600 + 1)
             results.append(float(row[offset + 1]))
     return age, gender, flag, times, results
 
@@ -169,7 +164,7 @@ if __name__ == "__main__":
     report_every = 10
     learning_rate = 0.001
     weight_decay = 0
-    criterion = nn.BCEWithLogitsLoss(pos_weight=3 * weight) # put more focus on positive cases
+    criterion = nn.BCEWithLogitsLoss(pos_weight=weight) # put more focus on positive cases
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, amsgrad=True, weight_decay=weight_decay)
     for iter in range(1, n_epoch + 1):
