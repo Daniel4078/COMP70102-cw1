@@ -42,9 +42,9 @@ with torch.no_grad():
                     falsepositive += 1
                 else:
                     falsenegative += 1
-print("number of true positives: " + str(truepositive))
-print("number of false positives: " + str(falsepositive))
-print("number of false negatives: " + str(falsenegative))
+print(truepositive)
+print(falsepositive)
+print(falsenegative)
 accuracy = 100 * correct / total  # accuracy
 f3 = 10 * truepositive / (10 * truepositive + falsepositive + 9 * falsenegative)  # f3 score
 print(f'Accuracy: {accuracy:.2f}%')
