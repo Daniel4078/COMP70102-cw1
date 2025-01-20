@@ -24,7 +24,7 @@ def main():
     model = getmodel()
     model = model.to(device)
     # load trained model from file
-    model.load_state_dict(torch.load("trained_model.pt", map_location=device, weights_only=True))
+    model.load_state_dict(torch.load("/model/trained_model.pt", map_location=device, weights_only=True))
     model.eval()
     print("prediction started")
     prediction = []
