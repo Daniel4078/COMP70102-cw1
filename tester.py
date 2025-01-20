@@ -29,16 +29,18 @@ falsenegative = 0
 print("evaluation started")
 with torch.no_grad():
     for x1_padded, x2, lengths, labels in test_loader:
-        outputs = torch.sigmoid(model(x1_padded, x2, lengths))
+        outputs = model(x1_padded, x2, lengths)
         total += len(labels)
+        # with a single output, confidence of having aki is sigmoid(output)
+        # prediction is positive (1) if confidence > 0.5, or output > 0 to skip sigmoid
+        predict = outputs >= 0
         for i in range(labels.size(0)):
-            predict = 0 if outputs[i] < 0.5 else 1
-            if predict == labels[i]:
+            if predict[i] == (labels[i] == 1):
                 correct += 1
                 if labels[i] == 1:
                     truepositive += 1
             else:
-                if predict == 1:
+                if predict[i]:
                     falsepositive += 1
                 else:
                     falsenegative += 1

@@ -30,9 +30,9 @@ def main():
     prediction = []
     with torch.no_grad():
         for x1_padded, x2, lengths, labels in test_loader:
-            outputs = torch.sigmoid(model(x1_padded, x2, lengths))
+            outputs = model(x1_padded, x2, lengths)
             for i in range(labels.size(0)):
-                prediction.append("n" if outputs[i] < 0.5 else "y")
+                prediction.append("n" if outputs[i] < 0 else "y")
     for p in prediction:
         w.writerow((p,))
     print("predictions written to " + flags.output)
